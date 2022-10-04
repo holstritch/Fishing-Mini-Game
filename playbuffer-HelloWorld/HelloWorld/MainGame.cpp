@@ -6,6 +6,8 @@ int DISPLAY_WIDTH = 320;
 int DISPLAY_HEIGHT = 180;
 int DISPLAY_SCALE = 4;
 
+constexpr int wrapBorderSize = 10.0f;
+
 enum class FishingState
 {
 	STATE_APPEAR = 0,
@@ -32,6 +34,7 @@ enum GameObjectType
 };
 
 // function prototypes
+void ScreenWrap(GameObject& obj, Vector2f origin);
 void SpawnFish();
 void UpdateFish();
 void UpdateFishingState();
@@ -58,14 +61,27 @@ bool MainGameUpdate(float elapsedTime)
 	return Play::KeyDown(VK_ESCAPE);
 }
 
+void ScreenWrap(GameObject& obj, Vector2f origin) 
+{
+	if (obj.pos.x - origin.x - wrapBorderSize > DISPLAY_WIDTH)
+	{
+		obj.pos.x = 0.0f - wrapBorderSize + origin.x;
+	}
+	else if (obj.pos.x + origin.x + wrapBorderSize < 0)
+	{
+		obj.pos.x = DISPLAY_WIDTH + wrapBorderSize - origin.x;
+	}
+}
+
 void SpawnFish() 
 {
 	for (int i = 0; i < 5; i++) 
 	{
 		int myFishId = Play::CreateGameObject(TYPE_FISH, { rand() % DISPLAY_WIDTH, rand() % DISPLAY_HEIGHT }, 50, "atlantic_bass");
-		GameObject& obj_Fish = Play::GetGameObject(myFishId);
+		GameObject& obj_fish = Play::GetGameObject(myFishId);
+		
+		obj_fish.velocity = { rand() % 2 + (-1), 0 };
 
-		// rand velocity x axis left or right 
 	}
 }
 void UpdateFish() 
@@ -75,6 +91,9 @@ void UpdateFish()
 	for (int id_fish : vFishIds)
 	{
 		GameObject& obj_fish = Play::GetGameObject(id_fish);
+
+		Vector2f origin = PlayGraphics::Instance().GetSpriteOrigin(obj_fish.spriteId);
+		ScreenWrap(obj_fish, origin);
 
 		Play::DrawObject(obj_fish);
 
