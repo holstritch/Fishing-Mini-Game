@@ -6,7 +6,7 @@ int DISPLAY_WIDTH = 320;
 int DISPLAY_HEIGHT = 180;
 int DISPLAY_SCALE = 4;
 
-constexpr int wrapBorderSize = 10.0f;
+constexpr int wrapBorderSize = 10;
 
 enum class FishingState
 {
@@ -46,13 +46,14 @@ void UpdateRod();
 void PlayerControls();
 void SpawnFishingUI();
 void UpdateFishingUI();
+void PlayerControlsFishUI();
+void UpdateFillUI();
 
 // The entry point for a PlayBuffer program
 void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
 {
 	Play::CreateManager(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_SCALE);
 	SpawnRod();
-	SpawnFishingUI();
 	Play::CentreAllSpriteOrigins();
 }
 
@@ -63,9 +64,7 @@ bool MainGameUpdate(float elapsedTime)
 	Play::ClearDrawingBuffer(Play::cCyan);
 	UpdateFish();
 	UpdateFishingState();
-	UpdateRod();
 	UpdateFishingUI();
-	PlayerControls();
 	Play::PresentDrawingBuffer();
 
 	return Play::KeyDown(VK_ESCAPE);
@@ -87,7 +86,7 @@ void SpawnFish()
 {
 	for (int i = 0; i < 5; i++) 
 	{
-		int myFishId = Play::CreateGameObject(TYPE_FISH, { rand() % DISPLAY_WIDTH, rand() % DISPLAY_HEIGHT }, 50, "atlantic_bass");
+		int myFishId = Play::CreateGameObject(TYPE_FISH, { rand() % DISPLAY_WIDTH, rand() % DISPLAY_HEIGHT }, 10, "atlantic_bass");
 		GameObject& obj_fish = Play::GetGameObject(myFishId);
 		
 		// (0 -> 999) / 1000.0
@@ -103,10 +102,12 @@ void SpawnFish()
 void UpdateFish() 
 {
 	std::vector<int> vFishIds = Play::CollectGameObjectIDsByType(TYPE_FISH);
+	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 
 	// sine wave variables
 	float sineSpeed = 1.5f;
 	float sineMovement = 0.2f;
+	bool canFish = true;
 
 	for (int id_fish : vFishIds)
 	{
@@ -121,6 +122,22 @@ void UpdateFish()
 		obj_fish.velocity.y = sineMovement * sin(gameState.timer * sineSpeed);
 
 		Play::UpdateGameObject(obj_fish);
+
+		if (canFish == true) 
+		{
+			if (Play::IsColliding(obj_fish, obj_rod))
+			{
+				canFish = false;
+				obj_fish.pos = obj_rod.pos;
+				obj_rod.velocity.y = -0.5;
+
+				if (obj_rod.pos.y <= -10)
+				{
+					obj_rod.velocity.y = 0;
+					gameState.fishingState = FishingState::STATE_CATCHING;
+				}
+			}
+		}
 	}
 }
 
@@ -133,21 +150,22 @@ void PlayerControls()
 		// rod movement
 		if (Play::KeyDown(VK_UP))
 		{
-			obj_rod.velocity.y = -0.5;
+			obj_rod.velocity.y = -1;
 		}
 
 		else if (Play::KeyDown(VK_DOWN))
 		{
-			obj_rod.velocity.y = 1;
+			obj_rod.velocity.y = 2;
 		}
 		// stop rod
 		else
 		{
+			// down
 			if (obj_rod.pos.y >= 175)
 			{
 				obj_rod.velocity.y = 0;
 			}
-
+			// up
 			else if (obj_rod.pos.y <= -10)
 			{
 				obj_rod.velocity.y = 0;
@@ -157,7 +175,7 @@ void PlayerControls()
 }
 void SpawnRod() 
 {
-	Play::CreateGameObject(TYPE_ROD, {150, 90}, 20, "hook");
+	Play::CreateGameObject(TYPE_ROD, {150, 90}, 5, "hook");
 }
 
 void UpdateRod() 
@@ -165,16 +183,15 @@ void UpdateRod()
 	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 	Play::DrawObject(obj_rod);
 
-	PlayerControls();
 	Play::DrawLine({ obj_rod.pos.x, 0 }, obj_rod.pos, Play::cWhite);
 	Play::UpdateGameObject(obj_rod);
 }
 
 void SpawnFishingUI()
 {
-	Play::CreateGameObject(TYPE_BAR_UI, { 37, 45 }, 20, "bar");
-	Play::CreateGameObject(TYPE_FILL_UI, { 37, 45 }, 20, "fill");
-	Play::CreateGameObject(TYPE_FISH_UI, { 37, 45 }, 20, "fish_ui");
+	Play::CreateGameObject(TYPE_BAR_UI, { 80, 90 }, 10, "bar");
+	Play::CreateGameObject(TYPE_FILL_UI, { 80, 90 }, 10, "fill");
+	Play::CreateGameObject(TYPE_FISH_UI, { 80, 90 }, 10, "fish_ui");
 }
 
 void UpdateFishingUI() 
@@ -186,13 +203,64 @@ void UpdateFishingUI()
 	Play::DrawObject(obj_bar);
 	Play::DrawObject(obj_fill);
 	Play::DrawObject(obj_fish_ui);
+	// to win reach x amount of time fish sprite is colliding with fill sprite
+	// timer for the mini game runs out and win/lose
 
 	Play::UpdateGameObject(obj_bar);
 	Play::UpdateGameObject(obj_fill);
 	Play::UpdateGameObject(obj_fish_ui);
 }
+
+void UpdateFillUI() 
+{
+	GameObject& obj_fill = Play::GetGameObjectByType(TYPE_FILL_UI);
+	bool canLerp = true;
+	// random target pos
+	// once reach set new random target
+
+	// 0 to 1
+	float t = (float)(rand() % 1000) / 1000.0f;
+	// lerp between random point 0 -> 1
+	int targetPos = 58 + t * (122 - 58);
+	int oldPos = obj_fill.pos.y;
+	// subtract current pos from target & add fraction of  difference to current pos
+	// bigger divisor slower movement
+	obj_fill.pos.y += (targetPos - oldPos) / 20;
+
+}
+
+void PlayerControlsFishUI() 
+{
+	GameObject& obj_fish_ui = Play::GetGameObjectByType(TYPE_FISH_UI);
+
+	if (Play::KeyPressed(VK_UP))
+	{
+		obj_fish_ui.velocity.y = -0.5;
+	}
+
+	else if (Play::KeyDown(VK_DOWN))
+	{
+		obj_fish_ui.velocity.y = 0.5;
+	}
+	else
+	{
+		// down
+		if (obj_fish_ui.pos.y >= 122)
+		{
+			obj_fish_ui.pos.y = 122;
+		}
+		// up
+		else if (obj_fish_ui.pos.y <= 58)
+		{
+			obj_fish_ui.pos.y = 58;
+		}
+	}
+
+}
 void UpdateFishingState() 
 {
+	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
+
 	switch (gameState.fishingState) 
 	{
 	case FishingState::STATE_APPEAR: 
@@ -202,9 +270,13 @@ void UpdateFishingState()
 	break;
 	case FishingState::STATE_FISHING: 
 		UpdateRod();
+		PlayerControls();
 	break;
 	case FishingState::STATE_CATCHING: 
-		
+		SpawnFishingUI();
+		UpdateFishingUI();
+		UpdateFillUI();
+		PlayerControlsFishUI();
 	break;
 	case FishingState::STATE_CAUGHT: 
 		
