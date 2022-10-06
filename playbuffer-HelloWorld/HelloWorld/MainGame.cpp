@@ -221,6 +221,7 @@ void UpdateFillUI()
 	// 0 to 1
 	float t = (float)(rand() % 1000) / 1000.0f;
 	// lerp between random point 0 -> 1
+	// 0t is 58, 1t is 122
 	int targetPos = 58 + t * (122 - 58);
 	int oldPos = obj_fill.pos.y;
 	// subtract current pos from target & add fraction of  difference to current pos
