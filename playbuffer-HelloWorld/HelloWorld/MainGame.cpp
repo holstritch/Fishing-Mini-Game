@@ -165,9 +165,10 @@ void UpdateFish(GameObjectType TYPE)
 void UpdateScore()
 {
 	UpdateFish(TYPE_BASS);
-
-	// if score more than 2 but not in update?
-	
+	// bool false 
+	// if score more than 2 && bool false
+	// UpdateFish(TYPE_DAB);
+	// bool == true
 }
 
 void PlayerControls() 
