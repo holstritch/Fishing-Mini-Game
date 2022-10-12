@@ -10,25 +10,35 @@ constexpr int wrapBorderSize = 10;
 
 enum class FishingState
 {
-	STATE_APPEAR = 0,
-	STATE_FISHING,
+	STATE_FISHING = 0,
 	STATE_REEL,
 	STATE_CATCHING,
 	STATE_CAUGHT,
 	STATE_LOST,
 };
 
+enum class PlayState 
+{
+	STATE_APPEAR = 0,
+	STATE_PLAY,
+	STATE_OUTCOME,
+};
+
 struct GameState 
 {
 	int score = 0;
+	int fishPoints{};
 	float timer = 0;
 	int spriteId = 0;
 	int winPoints = 0;
 	int losePoints = 0;
-	bool fishSpawnedlvl1 = false;
-	bool fishSpawnedlvl2 = false;
+	bool fishSpawnedLvl1 = false;
+	bool fishSpawnedLvl2 = false;
 	bool fishSpawnedLvl3 = false;
-	FishingState fishingState = FishingState::STATE_APPEAR;
+	bool hasCaught = false;
+	FishingState fishingState = FishingState::STATE_FISHING;
+	PlayState playState = PlayState::STATE_APPEAR;
+	
 };
 
 GameState gameState;
@@ -65,6 +75,7 @@ void LoseFish();
 void SpawnProgressBarUI();
 void UpdateProgressBarUI();
 void FishManager();
+void UpdatePlayState();
 
 // The entry point for a PlayBuffer program
 void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
@@ -80,7 +91,15 @@ bool MainGameUpdate(float elapsedTime)
 	gameState.timer += elapsedTime;
 	Play::DrawBackground();
 	UpdateFishingState();
+	UpdatePlayState();
 	FishManager();
+	UpdateFish(TYPE_BASS);
+	UpdateFish(TYPE_DAB);
+	UpdateFish(TYPE_GILL);
+	UpdateFish(TYPE_GOLDEN);
+	std::string score = std::to_string(gameState.score);
+	char const* pchar = score.c_str();
+	Play::DrawDebugText({ DISPLAY_WIDTH / 2, 50 }, pchar);
 	Play::PresentDrawingBuffer();
 
 	return Play::KeyDown(VK_ESCAPE);
@@ -104,7 +123,7 @@ void SpawnFish(GameObjectType TYPE, int count, const char* sprite_left, const ch
 	{
 		int myFishId = Play::CreateGameObject(TYPE, { rand() % DISPLAY_WIDTH, rand() % DISPLAY_HEIGHT }, 5, sprite_left);
 		GameObject& obj_fish = Play::GetGameObject(myFishId);
-		
+
 		// (0 -> 999) / 1000.0
 		float randomRatio = (rand() % 1000) / 1000.0f;
 
@@ -160,7 +179,25 @@ void UpdateFish(GameObjectType TYPE)
 			{
 				obj_rod.velocity.y = 0;
 				gameState.fishingState = FishingState::STATE_CATCHING;
+
+				switch (obj_fish.type) 
+				{
+				case TYPE_BASS:
+					gameState.fishPoints = 1;
+					break;
+				case TYPE_DAB:
+					gameState.fishPoints = 2;
+					break;
+				case TYPE_GILL:
+					gameState.fishPoints = 3;
+					break;
+				case TYPE_GOLDEN:
+					gameState.fishPoints = 5;
+					break;
+				}
+
 				Play::DestroyGameObject(id_fish);
+
 			}
 		}
 	}
@@ -168,25 +205,21 @@ void UpdateFish(GameObjectType TYPE)
 
 void FishManager()
 {
-	UpdateFish(TYPE_BASS);
-	UpdateFish(TYPE_DAB);
-
-	if (gameState.score == 2 && gameState.fishSpawnedlvl1 == false) 
+	if (gameState.score == 1 && gameState.fishSpawnedLvl1 == false)
 	{
 		SpawnFish(TYPE_DAB, 3, "dab", "dab_right");
-		gameState.fishSpawnedlvl1 = true;
+		gameState.fishSpawnedLvl1 = true;
 	}
-	if (gameState.score == 3 && gameState.fishSpawnedlvl2 == false)
+	if (gameState.score == 2 && gameState.fishSpawnedLvl2 == false)
 	{
 		SpawnFish(TYPE_GILL, 2, "blue_gill", "blue_gill_right");
-		gameState.fishSpawnedlvl2 = true;
+		gameState.fishSpawnedLvl2 = true;
 	}
 	if (gameState.score == 4 && gameState.fishSpawnedLvl3 == false)
 	{
 		SpawnFish(TYPE_GOLDEN, 1, "golden_tench", "golden_tench_right");
 		gameState.fishSpawnedLvl3 = true;
 	}
-
 }
 
 void PlayerControls() 
@@ -244,18 +277,20 @@ void UpdateProgressBarUI()
 {
 	GameObject& obj_progress_bar = Play::GetGameObjectByType(TYPE_PROGRESS_UI);
 	
-	if (gameState.score == 1 && gameState.score < 2) 
-	{
-		Play::SetSprite(obj_progress_bar, "progress_bar_fill_1", 0);
-	}
-	if (gameState.score == 2 && gameState.score < 3) 
-	{
-		Play::SetSprite(obj_progress_bar, "progress_bar_fill_2", 0);
-	}
-	if (gameState.score == 3 && gameState.score < 4)
+	// this doesnt work
+	if (gameState.score > 4) 
 	{
 		Play::SetSprite(obj_progress_bar, "progress_bar_fill_3", 0);
 	}
+	if (gameState.score > 2)
+	{
+		Play::SetSprite(obj_progress_bar, "progress_bar_fill_2", 0);
+	}
+	if (gameState.score > 1)
+	{
+		Play::SetSprite(obj_progress_bar, "progress_bar_fill_1", 0);
+	}
+
 	Play::DrawObject(obj_progress_bar);
 	Play::UpdateGameObject(obj_progress_bar);
 }
@@ -265,8 +300,6 @@ void SpawnFishingUI()
 	Play::CreateGameObject(TYPE_BAR_UI, { 80, 90 }, 10, "bar");
 	Play::CreateGameObject(TYPE_FILL_UI, { 80, 90 }, 5, "fill");
 	Play::CreateGameObject(TYPE_FISH_UI, { 80, 90 }, 2, "fish_ui");
-
-	GameObject& obj_fish_ui = Play::GetGameObjectByType(TYPE_FISH_UI);
 }
 
 void UpdateFishingUI() 
@@ -288,16 +321,16 @@ void UpdateFishingUI()
 		gameState.losePoints++;
 	}
 
-	if (gameState.winPoints >= 100) 
+	if (gameState.winPoints >= 100 && gameState.hasCaught == false)
 	{
+		gameState.hasCaught = true;
+		gameState.score += gameState.fishPoints;
 		gameState.fishingState = FishingState::STATE_CAUGHT;
-
 	}
 	if (gameState.losePoints >= 100) 
 	{
 		gameState.fishingState = FishingState::STATE_LOST;
 	}
-
 	Play::UpdateGameObject(obj_bar);
 	Play::UpdateGameObject(obj_fill);
 	Play::UpdateGameObject(obj_fish_ui);
@@ -354,7 +387,6 @@ void PlayerControlsBarUI()
 
 void WinFish()
 {
-	gameState.score = gameState.score +2;	
 	Play::CreateGameObject(TYPE_LETTER_UI, { 160, 90 }, 5, "letter_catch");
 	GameObject& obj_letter = Play::GetGameObjectByType(TYPE_LETTER_UI);
 	Play::DrawObject(obj_letter);
@@ -364,60 +396,67 @@ void WinFish()
 	{
 		Play::DestroyGameObjectsByType(TYPE_LETTER_UI);
 		gameState.fishingState = FishingState::STATE_FISHING;
+		gameState.playState = PlayState::STATE_PLAY;
 	}
-
 }
 
 void LoseFish() 
 {
 	gameState.fishingState = FishingState::STATE_FISHING;
+	gameState.playState = PlayState::STATE_PLAY;
+}
+
+void UpdatePlayState() 
+{
+	switch (gameState.playState) 
+	{
+	case PlayState::STATE_APPEAR:
+		SpawnFish(TYPE_BASS, 3, "atlantic_bass", "atlantic_bass_right");
+		SpawnRod();
+		SpawnProgressBarUI();
+		gameState.playState = PlayState::STATE_PLAY;
+		break;
+	case PlayState::STATE_PLAY:
+		UpdateProgressBarUI();
+		break;
+	case PlayState::STATE_OUTCOME:
+		Play::DestroyGameObjectsByType(TYPE_BAR_UI);
+		Play::DestroyGameObjectsByType(TYPE_FILL_UI);
+		Play::DestroyGameObjectsByType(TYPE_FISH_UI);
+		UpdateProgressBarUI();
+		gameState.winPoints = 0;
+		gameState.losePoints = 0;
+		break;
+	}
 }
 
 void UpdateFishingState() 
 {
-	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
-
 	switch (gameState.fishingState) 
 	{
-	case FishingState::STATE_APPEAR: 
-		SpawnFish(TYPE_BASS, 3, "atlantic_bass", "atlantic_bass_right");
-		SpawnRod();
-		SpawnProgressBarUI();
-		gameState.fishingState = FishingState::STATE_FISHING;
-	break;
 	case FishingState::STATE_FISHING: 
-		gameState.winPoints = 0;
-		gameState.losePoints = 0;
+		gameState.hasCaught = false;
 		UpdateRod();
-		UpdateProgressBarUI();
 		PlayerControls();
-	break;
+		break;
 	case FishingState::STATE_REEL:
 		UpdateRod();
-		UpdateProgressBarUI();
-	break;
+		break;
 	case FishingState::STATE_CATCHING: 
 		SpawnFishingUI();
 		UpdateFishingUI();
 		UpdateFishUI();
-		UpdateProgressBarUI();
 		PlayerControlsBarUI();
-	break;
+		break;
 	case FishingState::STATE_CAUGHT: 
-		Play::DestroyGameObjectsByType(TYPE_BAR_UI);
-		Play::DestroyGameObjectsByType(TYPE_FILL_UI);
-		Play::DestroyGameObjectsByType(TYPE_FISH_UI);
-		UpdateProgressBarUI();
+		gameState.playState = PlayState::STATE_OUTCOME;
 		WinFish();
-	break;
+		break;
 	case FishingState::STATE_LOST:
-		Play::DestroyGameObjectsByType(TYPE_BAR_UI);
-		Play::DestroyGameObjectsByType(TYPE_FILL_UI);
-		Play::DestroyGameObjectsByType(TYPE_FISH_UI);
-		UpdateProgressBarUI();
+		gameState.playState = PlayState::STATE_OUTCOME;
 		LoseFish();
-	break;
-	} // end of switch
+		break;
+	}
 }
 // Gets called once when the player quits the game 
 int MainGameExit( void )
