@@ -205,17 +205,17 @@ void UpdateFish(GameObjectType TYPE)
 
 void FishManager()
 {
-	if (gameState.score == 1 && gameState.fishSpawnedLvl1 == false)
+	if (gameState.score >= 1 && gameState.fishSpawnedLvl1 == false)
 	{
 		SpawnFish(TYPE_DAB, 3, "dab", "dab_right");
 		gameState.fishSpawnedLvl1 = true;
 	}
-	if (gameState.score == 2 && gameState.fishSpawnedLvl2 == false)
+	if (gameState.score >= 2 && gameState.fishSpawnedLvl2 == false)
 	{
 		SpawnFish(TYPE_GILL, 2, "blue_gill", "blue_gill_right");
 		gameState.fishSpawnedLvl2 = true;
 	}
-	if (gameState.score == 4 && gameState.fishSpawnedLvl3 == false)
+	if (gameState.score >= 4 && gameState.fishSpawnedLvl3 == false)
 	{
 		SpawnFish(TYPE_GOLDEN, 1, "golden_tench", "golden_tench_right");
 		gameState.fishSpawnedLvl3 = true;
@@ -278,15 +278,15 @@ void UpdateProgressBarUI()
 	GameObject& obj_progress_bar = Play::GetGameObjectByType(TYPE_PROGRESS_UI);
 	
 	// this doesnt work
-	if (gameState.score > 4) 
+	if (gameState.score >= 4)
 	{
 		Play::SetSprite(obj_progress_bar, "progress_bar_fill_3", 0);
 	}
-	if (gameState.score > 2)
+	else if (gameState.score >= 2)
 	{
 		Play::SetSprite(obj_progress_bar, "progress_bar_fill_2", 0);
 	}
-	if (gameState.score > 1)
+	else if (gameState.score >= 1)
 	{
 		Play::SetSprite(obj_progress_bar, "progress_bar_fill_1", 0);
 	}
