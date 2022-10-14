@@ -1,5 +1,6 @@
 #define PLAY_IMPLEMENTATION
 #define PLAY_USING_GAMEOBJECT_MANAGER
+#define PLAY_ADD_GAMEOBJECT_MEMBERS float sineOffset = 0.0f;
 #include "Play.h"
 
 int DISPLAY_WIDTH = 320;
@@ -17,14 +18,14 @@ enum class FishingState
 	STATE_LOST,
 };
 
-enum class PlayState 
+enum class PlayState
 {
 	STATE_APPEAR = 0,
 	STATE_PLAY,
 	STATE_OUTCOME,
 };
 
-struct GameState 
+struct GameState
 {
 	int score = 0;
 	int fishPoints{};
@@ -39,9 +40,13 @@ struct GameState
 	bool fishSpawnedLvl2 = false;
 	bool fishSpawnedLvl3 = false;
 	bool hasCaught = false;
+	bool canFish = true;
+	int caughtFish = -1;
+	float t = 0;
+	int miniGameCountdown = 60;
 	FishingState fishingState = FishingState::STATE_FISHING;
 	PlayState playState = PlayState::STATE_APPEAR;
-	
+
 };
 
 GameState gameState;
@@ -70,7 +75,8 @@ void SpawnRod();
 void UpdateRod();
 void PlayerControls();
 void SpawnFishingUI();
-void UpdateFishingUI();
+void UpdateFishingUI(const char* fill);
+void UpdateFillUI();
 void PlayerControlsBarUI();
 void UpdateFishUI();
 void WinFish();
@@ -107,7 +113,7 @@ bool MainGameUpdate(float elapsedTime)
 	return Play::KeyDown(VK_ESCAPE);
 }
 
-void ScreenWrap(GameObject& obj, Vector2f origin) 
+void ScreenWrap(GameObject& obj, Vector2f origin)
 {
 	if (obj.pos.x - origin.x - wrapBorderSize > DISPLAY_WIDTH)
 	{
@@ -119,12 +125,15 @@ void ScreenWrap(GameObject& obj, Vector2f origin)
 	}
 }
 
-void SpawnFish(GameObjectType TYPE, int count, const char* sprite_left, const char * sprite_right)
+void SpawnFish(GameObjectType TYPE, int count, const char* sprite_left, const char* sprite_right)
 {
-	for (int i = 0; i < count; i++) 
+	for (int i = 0; i < count; i++)
 	{
 		int myFishId = Play::CreateGameObject(TYPE, { rand() % DISPLAY_WIDTH, rand() % DISPLAY_HEIGHT }, 5, sprite_left);
 		GameObject& obj_fish = Play::GetGameObject(myFishId);
+
+		// sine offset 0 -> 2 pi
+		obj_fish.sineOffset = ((rand() % 1000) / 1000.0f) * 2.0 * PLAY_PI;
 
 		// (0 -> 999) / 1000.0
 		float randomRatio = (rand() % 1000) / 1000.0f;
@@ -135,18 +144,18 @@ void SpawnFish(GameObjectType TYPE, int count, const char* sprite_left, const ch
 		if ((rand() % 100) < 50) obj_fish.velocity.x = -obj_fish.velocity.x;
 
 		// rotate sprite
-		if (obj_fish.velocity.x >= 0) 
+		if (obj_fish.velocity.x >= 0)
 		{
 			Play::SetSprite(obj_fish, sprite_right, 0);
 			obj_fish.rotation = 0.8;
 		}
-		else 
+		else
 		{
 			obj_fish.rotation = -0.8;
 		}
 	}
 }
-void UpdateFish(GameObjectType TYPE) 
+void UpdateFish(GameObjectType TYPE)
 {
 	std::vector<int> vFishIds = Play::CollectGameObjectIDsByType(TYPE);
 	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
@@ -154,7 +163,6 @@ void UpdateFish(GameObjectType TYPE)
 	// sine wave variables
 	float sineSpeed = 1.5f;
 	float sineMovement = 0.2f;
-	bool canFish = true;
 
 	for (int id_fish : vFishIds)
 	{
@@ -166,40 +174,21 @@ void UpdateFish(GameObjectType TYPE)
 		Play::DrawObjectRotated(obj_fish);
 
 		// sine wave
-		obj_fish.velocity.y = sineMovement * sin(gameState.timer * sineSpeed);
+		obj_fish.velocity.y = sineMovement * sin(gameState.timer * sineSpeed + obj_fish.sineOffset);
 
 		Play::UpdateGameObject(obj_fish);
 
-		if (Play::IsColliding(obj_fish, obj_rod)&& canFish == true)
+		if (Play::IsColliding(obj_fish, obj_rod) && gameState.canFish == true)
+		{
+			gameState.caughtFish = id_fish;
+			obj_rod.velocity.y = -0.5;
+			gameState.canFish = false;
+			gameState.fishingState = FishingState::STATE_REEL;
+		}
+
+		if (id_fish == gameState.caughtFish) 
 		{
 			obj_fish.pos = obj_rod.pos;
-			obj_rod.velocity.y = -0.5;
-			gameState.fishingState = FishingState::STATE_REEL;
-			canFish = false;
-
-			if (obj_rod.pos.y <= -10)
-			{
-				obj_rod.velocity.y = 0;
-				gameState.fishingState = FishingState::STATE_CATCHING;
-
-				switch (obj_fish.type) 
-				{
-				case TYPE_BASS:
-					gameState.fishPoints = 1;
-					break;
-				case TYPE_DAB:
-					gameState.fishPoints = 2;
-					break;
-				case TYPE_GILL:
-					gameState.fishPoints = 3;
-					break;
-				case TYPE_GOLDEN:
-					gameState.fishPoints = 5;
-					break;
-				}
-				Play::DestroyGameObject(id_fish);
-				
-			}
 		}
 	}
 }
@@ -223,7 +212,7 @@ void FishManager()
 	}
 }
 
-void UpdateFishManager() 
+void UpdateFishManager()
 {
 	UpdateFish(TYPE_BASS);
 
@@ -241,7 +230,7 @@ void UpdateFishManager()
 	}
 }
 
-void PlayerControls() 
+void PlayerControls()
 {
 	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 
@@ -273,12 +262,12 @@ void PlayerControls()
 		}
 	}
 }
-void SpawnRod() 
+void SpawnRod()
 {
-	Play::CreateGameObject(TYPE_ROD, {150, 10}, 5, "hook");
+	Play::CreateGameObject(TYPE_ROD, { 150, 10 }, 5, "hook");
 }
 
-void UpdateRod() 
+void UpdateRod()
 {
 	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 	Play::DrawObject(obj_rod);
@@ -287,15 +276,15 @@ void UpdateRod()
 	Play::UpdateGameObject(obj_rod);
 }
 
-void SpawnProgressBarUI() 
+void SpawnProgressBarUI()
 {
 	Play::CreateGameObject(TYPE_PROGRESS_UI, { 20, 45 }, 10, "progress_bar_empty");
 }
 
-void UpdateProgressBarUI() 
+void UpdateProgressBarUI()
 {
 	GameObject& obj_progress_bar = Play::GetGameObjectByType(TYPE_PROGRESS_UI);
-	
+
 	if (gameState.score >= gameState.unlockThree)
 	{
 		Play::SetSprite(obj_progress_bar, "progress_bar_fill_full", 0);
@@ -316,11 +305,11 @@ void UpdateProgressBarUI()
 void SpawnFishingUI()
 {
 	Play::CreateGameObject(TYPE_BAR_UI, { 80, 90 }, 10, "bar");
-	Play::CreateGameObject(TYPE_FILL_UI, { 80, 90 }, 5, "fill");
+	Play::CreateGameObject(TYPE_FILL_UI, { 80, 90 }, 15, "fill_easy");
 	Play::CreateGameObject(TYPE_FISH_UI, { 80, 90 }, 2, "fish_ui");
 }
 
-void UpdateFishingUI() 
+void UpdateFishingUI(const char* fill)
 {
 	GameObject& obj_bar = Play::GetGameObjectByType(TYPE_BAR_UI);
 	GameObject& obj_fill = Play::GetGameObjectByType(TYPE_FILL_UI);
@@ -330,7 +319,9 @@ void UpdateFishingUI()
 	Play::DrawObject(obj_fill);
 	Play::DrawObject(obj_fish_ui);
 
-	if (Play::IsColliding(obj_fish_ui, obj_fill)) 
+	Play::SetSprite(obj_fill, fill, 0);
+
+	if (Play::IsColliding(obj_fish_ui, obj_fill))
 	{
 		gameState.winPoints++;
 	}
@@ -339,13 +330,13 @@ void UpdateFishingUI()
 		gameState.losePoints++;
 	}
 
-	if (gameState.winPoints >= 300 && gameState.hasCaught == false)
+	if (gameState.winPoints >= 1000 && gameState.hasCaught == false)
 	{
 		gameState.hasCaught = true;
 		gameState.score += gameState.fishPoints;
 		gameState.fishingState = FishingState::STATE_CAUGHT;
 	}
-	if (gameState.losePoints >= 200) 
+	if (gameState.losePoints >= 1000)
 	{
 		gameState.fishingState = FishingState::STATE_LOST;
 	}
@@ -354,17 +345,23 @@ void UpdateFishingUI()
 	Play::UpdateGameObject(obj_fish_ui);
 }
 
-void UpdateFishUI() 
+void UpdateFishUI()
 {
-	// random target pos
-	// once reach set new random target
-
 	GameObject& obj_fish_ui = Play::GetGameObjectByType(TYPE_FISH_UI);
-	// 0 to 1
-	float t = (float)(rand() % 1000) / 1000.0f;
+
+	gameState.miniGameCountdown--;
+
+	// wait til reach then reset t
+	if (gameState.miniGameCountdown <= 0) 
+	{
+		// 0 to 1
+		gameState.t = (float)(rand() % 1000) / 1000.0f;
+		gameState.miniGameCountdown = 60;
+	}
+
 	// lerp between random point 0 -> 1
 	// 0t is 40, 1t is 140
-	int targetPos = 40 + t * (140 - 40);
+	int targetPos = 40 + gameState.t * (140 - 40);
 	int oldPos = obj_fish_ui.pos.y;
 	// subtract current pos from target & add fraction of difference to current pos
 	// bigger divisor slower movement
@@ -372,12 +369,34 @@ void UpdateFishUI()
 
 }
 
-void PlayerControlsBarUI() 
+void UpdateFillUI() 
+{
+	// also change collider size 
+	if (gameState.fishPoints == 1)
+	{
+		UpdateFishingUI("fill_easy");
+	}
+	if (gameState.fishPoints == gameState.unlockOne)
+	{
+		UpdateFishingUI("fill_medium");
+	}
+	if (gameState.fishPoints == gameState.unlockTwo)
+	{
+		UpdateFishingUI("fill_hard");
+	}
+	if (gameState.fishPoints == gameState.unlockThree)
+	{
+		UpdateFishingUI("fill_golden");
+	}
+}
+
+void PlayerControlsBarUI()
 {
 	GameObject& obj_fill = Play::GetGameObjectByType(TYPE_FILL_UI);
 
-	int barHeightUp = 48;
-	int barHeightDown = 132;
+	// change bar height dependant on fill size 
+	int barHeightUp = 60;
+	int barHeightDown = 120;
 
 	if (Play::KeyPressed(VK_UP))
 	{
@@ -409,7 +428,7 @@ void WinFish()
 	Play::DrawObject(obj_letter);
 	Play::UpdateGameObject(obj_letter);
 
-	if (Play::KeyPressed(VK_SPACE)) 
+	if (Play::KeyPressed(VK_SPACE))
 	{
 		Play::DestroyGameObjectsByType(TYPE_LETTER_UI);
 		gameState.fishingState = FishingState::STATE_FISHING;
@@ -417,15 +436,18 @@ void WinFish()
 	}
 }
 
-void LoseFish() 
+void LoseFish()
 {
-	gameState.fishingState = FishingState::STATE_FISHING;
-	gameState.playState = PlayState::STATE_PLAY;
+	if (Play::KeyPressed(VK_SPACE))
+	{
+		gameState.fishingState = FishingState::STATE_FISHING;
+		gameState.playState = PlayState::STATE_PLAY;
+	}
 }
 
-void UpdatePlayState() 
+void UpdatePlayState()
 {
-	switch (gameState.playState) 
+	switch (gameState.playState)
 	{
 	case PlayState::STATE_APPEAR:
 		SpawnFish(TYPE_BASS, 6, "atlantic_bass", "atlantic_bass_right");
@@ -447,25 +469,53 @@ void UpdatePlayState()
 	}
 }
 
-void UpdateFishingState() 
+void UpdateFishingState()
 {
-	switch (gameState.fishingState) 
+	switch (gameState.fishingState)
 	{
-	case FishingState::STATE_FISHING: 
+	case FishingState::STATE_FISHING:
 		gameState.hasCaught = false;
 		UpdateRod();
 		PlayerControls();
 		break;
 	case FishingState::STATE_REEL:
+	{
+		GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
+		GameObject& obj_fish = Play::GetGameObject(gameState.caughtFish);
+		if (obj_rod.pos.y <= -10)
+		{
+			gameState.canFish = true;
+			obj_rod.velocity.y = 0;
+
+			switch (obj_fish.type)
+			{
+			case TYPE_BASS:
+				gameState.fishPoints = 1;
+				break;
+			case TYPE_DAB:
+				gameState.fishPoints = 2;
+				break;
+			case TYPE_GILL:
+				gameState.fishPoints = 3;
+				break;
+			case TYPE_GOLDEN:
+				gameState.fishPoints = 5;
+				break;
+			}
+			Play::DestroyGameObject(gameState.caughtFish);
+			gameState.caughtFish = -1;
+			gameState.fishingState = FishingState::STATE_CATCHING;
+		}
 		UpdateRod();
-		break;
-	case FishingState::STATE_CATCHING: 
+	}
+	break;
+	case FishingState::STATE_CATCHING:
 		SpawnFishingUI();
-		UpdateFishingUI();
+		UpdateFillUI();
 		UpdateFishUI();
 		PlayerControlsBarUI();
 		break;
-	case FishingState::STATE_CAUGHT: 
+	case FishingState::STATE_CAUGHT:
 		gameState.playState = PlayState::STATE_OUTCOME;
 		WinFish();
 		break;
@@ -476,7 +526,7 @@ void UpdateFishingState()
 	}
 }
 // Gets called once when the player quits the game 
-int MainGameExit( void )
+int MainGameExit(void)
 {
 	Play::DestroyManager();
 	return PLAY_OK;
