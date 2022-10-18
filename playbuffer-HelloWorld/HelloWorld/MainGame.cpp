@@ -45,9 +45,10 @@ struct GameState
 	bool fishSpawnedLvl3 = false;
 	bool hasCaught = false;
 	bool canFish = true;
-	int caughtObj = -1;
+	int caughtFish = -1;
 	float t = 0;
 	int miniGameCountdown = 60;
+	std::string caughtFishString = {};
 	FishingState fishingState = FishingState::STATE_FISHING;
 	PlayState playState = PlayState::STATE_APPEAR;
 
@@ -185,13 +186,13 @@ void UpdateFish(GameObjectType TYPE)
 
 		if (Play::IsColliding(obj_fish, obj_rod) && gameState.canFish == true)
 		{
-			gameState.caughtObj = id_fish;
+			gameState.caughtFish = id_fish;
 			obj_rod.velocity.y = -0.5;
 			gameState.canFish = false;
 			gameState.fishingState = FishingState::STATE_REEL;
 		}
 
-		if (id_fish == gameState.caughtObj) 
+		if (id_fish == gameState.caughtFish) 
 		{
 			obj_fish.pos = obj_rod.pos;
 		}
@@ -377,7 +378,6 @@ void UpdateFishUI()
 
 void UpdateFillUI() 
 {
-	// also change collider size 
 	if (gameState.fishPoints == 1)
 	{
 		UpdateFishingUI("fill_easy", 15);
@@ -427,9 +427,33 @@ void PlayerControlsUI(int fillHeightUp, int fillHeightDown)
 	}
 }
 
+void SpawnLetterManager(const char* letter)
+{
+	Play::CreateGameObject(TYPE_LETTER_UI, { 160, 90 }, 5, letter);
+}
 void WinFish()
 {
-	Play::CreateGameObject(TYPE_LETTER_UI, { 160, 90 }, 5, "letter_catch");
+	// this doesnt work
+	const char* fishLetter = {};
+
+	if (gameState.fishPoints == 1)
+	{
+		fishLetter = "catch_bass";
+	}
+	if (gameState.fishPoints == gameState.dabScore)
+	{
+		fishLetter = "catch_dab";
+	}
+	if (gameState.fishPoints == gameState.gillScore)
+	{
+		fishLetter = "catch_blue_gill";
+	}
+	if (gameState.fishPoints == gameState.goldenScore)
+	{
+		fishLetter = "catch_golden_tench";
+	}
+
+	SpawnLetterManager(fishLetter);
 	GameObject& obj_letter = Play::GetGameObjectByType(TYPE_LETTER_UI);
 	Play::DrawObject(obj_letter);
 	Play::UpdateGameObject(obj_letter);
@@ -487,7 +511,7 @@ void UpdateFishingState()
 	case FishingState::STATE_REEL:
 	{
 		GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
-		GameObject& obj_fish = Play::GetGameObject(gameState.caughtObj);
+		GameObject& obj_fish = Play::GetGameObject(gameState.caughtFish);
 		if (obj_rod.pos.y <= -10)
 		{
 			gameState.canFish = true;
@@ -508,15 +532,15 @@ void UpdateFishingState()
 				gameState.fishPoints = gameState.goldenScore;
 				break;
 			}
-			Play::DestroyGameObject(gameState.caughtObj);
-			gameState.caughtObj = -1;
+			Play::DestroyGameObject(gameState.caughtFish);
+			gameState.caughtFish = -1;
 			gameState.fishingState = FishingState::STATE_CATCHING;
+			SpawnFishingUI();
 		}
 		UpdateRod();
 	}
 	break;
 	case FishingState::STATE_CATCHING:
-		SpawnFishingUI();
 		UpdateFillUI();
 		UpdateFishUI();
 		break;

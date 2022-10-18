@@ -4027,7 +4027,7 @@ namespace Play
 	void DestroyGameObjectsByType( int objType )
 	{
 		std::vector<int> typeVec = CollectGameObjectIDsByType( objType );
-		for( size_t i = 1; i < typeVec.size(); i++ )
+		for( size_t i = 0; i < typeVec.size(); i++ )
 			DestroyGameObject( typeVec[i] );
 	}
 
