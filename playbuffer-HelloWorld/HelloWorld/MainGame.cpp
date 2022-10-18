@@ -33,6 +33,10 @@ struct GameState
 	int spriteId = 0;
 	int winPoints = 0;
 	int losePoints = 0;
+	int bassScore = 1;
+	int dabScore = 2;
+	int gillScore = 3;
+	int goldenScore = 5;
 	int fishUnlockOne = 2;
 	int fishUnlockTwo = 6;
 	int fishUnlockThree = 10;
@@ -379,17 +383,17 @@ void UpdateFillUI()
 		UpdateFishingUI("fill_easy", 15);
 		PlayerControlsUI(60, 120);
 	}
-	if (gameState.fishPoints == gameState.fishUnlockOne)
+	if (gameState.fishPoints == gameState.dabScore)
 	{
 		UpdateFishingUI("fill_medium", 12);
 		PlayerControlsUI(56, 124);
 	}
-	if (gameState.fishPoints == gameState.fishUnlockTwo)
+	if (gameState.fishPoints == gameState.gillScore)
 	{
 		UpdateFishingUI("fill_hard", 9);
 		PlayerControlsUI(53, 127);
 	}
-	if (gameState.fishPoints == gameState.fishUnlockThree)
+	if (gameState.fishPoints == gameState.goldenScore)
 	{
 		UpdateFishingUI("fill_golden", 6);
 		PlayerControlsUI(50, 130);
@@ -492,16 +496,16 @@ void UpdateFishingState()
 			switch (obj_fish.type)
 			{
 			case TYPE_BASS:
-				gameState.fishPoints = 1;
+				gameState.fishPoints = gameState.bassScore;
 				break;
 			case TYPE_DAB:
-				gameState.fishPoints = 2;
+				gameState.fishPoints = gameState.dabScore;
 				break;
 			case TYPE_GILL:
-				gameState.fishPoints = 3;
+				gameState.fishPoints = gameState.gillScore;
 				break;
 			case TYPE_GOLDEN:
-				gameState.fishPoints = 5;
+				gameState.fishPoints = gameState.goldenScore;
 				break;
 			}
 			Play::DestroyGameObject(gameState.caughtObj);
