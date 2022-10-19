@@ -100,7 +100,7 @@ void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
 	Play::CreateManager(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_SCALE);
 	Play::LoadBackground("Data\\Backgrounds\\underwater.png");
 	Play::CentreAllSpriteOrigins();
-	//Play::StartAudioLoop("music");
+	Play::StartAudioLoop("music");
 }
 
 // Called by PlayBuffer every frame (60 times a second!)
@@ -114,9 +114,8 @@ bool MainGameUpdate(float elapsedTime)
 	UpdateFishingState();
 	std::string score = std::to_string(gameState.score);
 	char const* pchar = score.c_str();
-	Play::DrawDebugText({ DISPLAY_WIDTH / 2, 50 }, pchar);
+	Play::DrawFontText("32px", "SCORE: " + std::to_string(gameState.score), { 285, 15 }, Play::CENTRE);
 	Play::PresentDrawingBuffer();
-
 	return Play::KeyDown(VK_ESCAPE);
 }
 
@@ -160,7 +159,7 @@ void SpawnFish(GameObjectType TYPE, int count, const char* sprite_left, const ch
 		{
 			obj_fish.rotation = -0.8;
 		}
-	}
+	} 
 }
 void UpdateFish(GameObjectType TYPE)
 {
@@ -190,6 +189,8 @@ void UpdateFish(GameObjectType TYPE)
 			gameState.caughtFish = id_fish;
 			obj_rod.velocity.y = -0.5;
 			gameState.canFish = false;
+			Play::StopAudioLoop("fishing_reel");
+			Play::StartAudioLoop("pulling_fish");
 			gameState.fishingState = FishingState::STATE_REEL;
 		}
 
@@ -247,11 +248,15 @@ void PlayerControls()
 		if (Play::KeyDown(VK_UP))
 		{
 			obj_rod.velocity.y = -1;
+			//Play::StopAudioLoop("fishing_reel");
+			Play::StartAudioLoop("fishing_reel");
 		}
 
-		else if (Play::KeyDown(VK_DOWN))
+		else if (Play::KeyDown(VK_DOWN) && obj_rod.pos.y < 175)
 		{
 			obj_rod.velocity.y = 2;
+			//Play::StartAudioLoop("fishing_reel");
+			Play::StartAudioLoop("fishing_reel");
 		}
 		// stop rod
 		else
@@ -260,18 +265,24 @@ void PlayerControls()
 			if (obj_rod.pos.y >= 175)
 			{
 				obj_rod.velocity.y = 0;
+				Play::StopAudioLoop("fishing_reel");
 			}
 			// up
 			else if (obj_rod.pos.y <= -10)
 			{
 				obj_rod.velocity.y = 0;
+				Play::StopAudioLoop("fishing_reel");
 			}
+		}
+		if (obj_rod.pos.y == 0 && obj_rod.velocity.y == 2) 
+		{
+			Play::PlayAudio("hits_water");
 		}
 	}
 }
 void SpawnRod()
 {
-	Play::CreateGameObject(TYPE_ROD, { 150, 10 }, 5, "hook");
+	Play::CreateGameObject(TYPE_ROD, { 160, -10 }, 5, "hook");
 }
 
 void UpdateRod()
@@ -279,7 +290,7 @@ void UpdateRod()
 	GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 	Play::DrawObject(obj_rod);
 
-	Play::DrawLine({ obj_rod.pos.x, 0 }, obj_rod.pos, Play::cWhite);
+	Play::DrawLine({ obj_rod.pos.x, -10 }, obj_rod.pos, Play::cWhite);
 	Play::UpdateGameObject(obj_rod);
 }
 
@@ -344,7 +355,7 @@ void UpdateFishingUI(const char* fill, int collisionRadius)
 		gameState.score += gameState.fishPoints;
 		gameState.fishingState = FishingState::STATE_CAUGHT;
 	}
-	if (gameState.losePoints >= 1000)
+	if (gameState.losePoints >= 100)
 	{
 		gameState.fishingState = FishingState::STATE_LOST;
 	}
@@ -473,8 +484,8 @@ void WinFish()
 
 void LoseFish()
 {
-	//SpawnLetterUI();
-	//UpdateLetterUI();
+	SpawnLetterUI();
+	UpdateLetterUI("letter_miss");
 	if (Play::KeyPressed(VK_SPACE))
 	{
 		gameState.fishingState = FishingState::STATE_FISHING;
@@ -519,8 +530,11 @@ void UpdateFishingState()
 	{
 		GameObject& obj_rod = Play::GetGameObjectByType(TYPE_ROD);
 		GameObject& obj_fish = Play::GetGameObject(gameState.caughtFish);
+
 		if (obj_rod.pos.y <= -10)
 		{
+			Play::StopAudioLoop("pulling_fish");
+
 			gameState.canFish = true;
 			obj_rod.velocity.y = 0;
 
