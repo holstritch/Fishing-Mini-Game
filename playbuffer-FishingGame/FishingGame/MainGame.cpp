@@ -11,18 +11,21 @@ constexpr int wrapBorderSize = 10;
 
 enum class FishingState
 {
-	STATE_FISHING = 0,
+	STATE_NULL = 0,
+	STATE_FISHING,
 	STATE_REEL,
 	STATE_CATCHING,
 	STATE_CAUGHT,
-	STATE_LOST,
+	STATE_LOST
 };
 
 enum class PlayState
 {
-	STATE_APPEAR = 0,
+	STATE_MENU = 0,
+	STATE_APPEAR,
 	STATE_PLAY,
 	STATE_OUTCOME,
+	STATE_RESTART
 };
 
 struct GameState
@@ -40,16 +43,17 @@ struct GameState
 	int fishUnlockOne = 2;
 	int fishUnlockTwo = 6;
 	int fishUnlockThree = 10;
-	bool fishSpawnedLvl1 = false;
-	bool fishSpawnedLvl2 = false;
-	bool fishSpawnedLvl3 = false;
+	bool fishSpawnedBass = false;
+	bool fishSpawnedUnlock1 = false;
+	bool fishSpawnedUnlock2 = false;
+	bool fishSpawnedUnlock3 = false;
 	bool hasCaught = false;
 	bool canFish = true;
 	int caughtFish = -1;
 	float t = 0;
 	int miniGameCountdown = 60;
-	FishingState fishingState = FishingState::STATE_FISHING;
-	PlayState playState = PlayState::STATE_APPEAR;
+	FishingState fishingState = FishingState::STATE_NULL;
+	PlayState playState = PlayState::STATE_MENU;
 
 };
 
@@ -93,6 +97,9 @@ void UpdateFishManager();
 void UpdatePlayState();
 void SpawnLetterUI();
 void UpdateLetterUI(const char* letter);
+void EndGameManager();
+void WinGame();
+void LoseGame();
 
 // The entry point for a PlayBuffer program
 void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
@@ -108,7 +115,6 @@ bool MainGameUpdate(float elapsedTime)
 {
 	gameState.timer += elapsedTime;
 	Play::DrawBackground();
-	FishManager();
 	UpdateFishManager();
 	UpdatePlayState();
 	UpdateFishingState();
@@ -203,20 +209,25 @@ void UpdateFish(GameObjectType TYPE)
 
 void FishManager()
 {
-	if (gameState.score >= gameState.fishUnlockOne && gameState.fishSpawnedLvl1 == false)
+	if (gameState.score == 0 && gameState.fishSpawnedBass == false) 
+	{
+		SpawnFish(TYPE_BASS, 6, "fish_bass_left", "fish_bass_right");
+		gameState.fishSpawnedBass = true;
+	}
+	if (gameState.score >= gameState.fishUnlockOne && gameState.fishSpawnedUnlock1 == false)
 	{
 		SpawnFish(TYPE_DAB, 3, "fish_dab_left", "fish_dab_right");
-		gameState.fishSpawnedLvl1 = true;
+		gameState.fishSpawnedUnlock1 = true;
 	}
-	if (gameState.score >= gameState.fishUnlockTwo && gameState.fishSpawnedLvl2 == false)
+	if (gameState.score >= gameState.fishUnlockTwo && gameState.fishSpawnedUnlock2 == false)
 	{
 		SpawnFish(TYPE_GILL, 3, "fish_bluegill_left", "fish_bluegill_right");
-		gameState.fishSpawnedLvl2 = true;
+		gameState.fishSpawnedUnlock2 = true;
 	}
-	if (gameState.score >= gameState.fishUnlockThree && gameState.fishSpawnedLvl3 == false)
+	if (gameState.score >= gameState.fishUnlockThree && gameState.fishSpawnedUnlock3 == false)
 	{
 		SpawnFish(TYPE_GOLDEN, 1, "fish_golden_left", "fish_golden_right");
-		gameState.fishSpawnedLvl3 = true;
+		gameState.fishSpawnedUnlock3 = true;
 	}
 }
 
@@ -248,14 +259,12 @@ void PlayerControls()
 		if (Play::KeyDown(VK_UP))
 		{
 			obj_rod.velocity.y = -1;
-			//Play::StopAudioLoop("fishing_reel");
 			Play::StartAudioLoop("fishing_reel");
 		}
 
 		else if (Play::KeyDown(VK_DOWN) && obj_rod.pos.y < 175)
 		{
 			obj_rod.velocity.y = 2;
-			//Play::StartAudioLoop("fishing_reel");
 			Play::StartAudioLoop("fishing_reel");
 		}
 		// stop rod
@@ -493,12 +502,46 @@ void LoseFish()
 	}
 }
 
+void EndGameManager() 
+{
+	// if catch golden fish 
+	// win game
+	// menu
+
+	// if no fish left 
+	// lose game
+	// menu
+}
+
+void WinGame() 
+{
+	gameState.playState = PlayState::STATE_MENU;
+	gameState.fishingState = FishingState::STATE_NULL;
+}
+
+void LoseGame() 
+{
+	gameState.playState = PlayState::STATE_MENU;
+	gameState.fishingState = FishingState::STATE_NULL;
+}
+
 void UpdatePlayState()
 {
 	switch (gameState.playState)
 	{
+	case PlayState::STATE_MENU:
+		Play::DrawFontText("32px", "SCORE: " + std::to_string(gameState.score), { 285, 15 }, Play::CENTRE);
+		Play::DrawFontText("32px", "CATCH THE GOLDEN FISH TO WIN", { 160, 160 }, Play::CENTRE);
+		SpawnLetterUI();
+		UpdateLetterUI("letter_menu");
+		if (Play::KeyPressed(VK_SPACE)) 
+		{
+			gameState.playState = PlayState::STATE_APPEAR;
+			gameState.fishingState = FishingState::STATE_FISHING;
+		}
+		break;
 	case PlayState::STATE_APPEAR:
-		SpawnFish(TYPE_BASS, 6, "fish_bass_left", "fish_bass_right");
+		FishManager();
 		SpawnRod();
 		SpawnProgressBarUI();
 		gameState.playState = PlayState::STATE_PLAY;
@@ -511,9 +554,24 @@ void UpdatePlayState()
 		Play::DestroyGameObjectsByType(TYPE_FILL_UI);
 		Play::DestroyGameObjectsByType(TYPE_FISH_UI);
 		UpdateProgressBarUI();
+		EndGameManager();
 		gameState.winPoints = 0;
 		gameState.losePoints = 0;
 		break;
+	case PlayState::STATE_RESTART:
+		Play::DestroyGameObjectsByType(TYPE_BASS);
+		Play::DestroyGameObjectsByType(TYPE_DAB);
+		Play::DestroyGameObjectsByType(TYPE_GILL);
+		Play::DestroyGameObjectsByType(TYPE_GOLDEN);
+		gameState.score = 0;
+		gameState.timer = 0;
+		gameState.fishSpawnedBass = false;
+		gameState.fishSpawnedUnlock1 = false;
+		gameState.fishSpawnedUnlock2 = false;
+		gameState.fishSpawnedUnlock3 = false;
+		gameState.playState = PlayState::STATE_MENU;
+		break;
+
 	}
 }
 
@@ -521,6 +579,8 @@ void UpdateFishingState()
 {
 	switch (gameState.fishingState)
 	{
+	case FishingState::STATE_NULL:
+		break;
 	case FishingState::STATE_FISHING:
 		gameState.hasCaught = false;
 		UpdateRod();
@@ -553,6 +613,7 @@ void UpdateFishingState()
 				gameState.fishPoints = gameState.goldenScore;
 				break;
 			}
+
 			Play::DestroyGameObject(gameState.caughtFish);
 			gameState.caughtFish = -1;
 			gameState.fishingState = FishingState::STATE_CATCHING;
@@ -567,6 +628,7 @@ void UpdateFishingState()
 		break;
 	case FishingState::STATE_CAUGHT:
 		gameState.playState = PlayState::STATE_OUTCOME;
+		FishManager();
 		WinFish();
 		break;
 	case FishingState::STATE_LOST:
