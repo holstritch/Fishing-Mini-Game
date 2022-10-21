@@ -44,6 +44,7 @@ struct GameState
 	int fishUnlockOne = 2;
 	int fishUnlockTwo = 6;
 	int fishUnlockThree = 10;
+	int pointsNeeded = -1;
 	bool fishSpawnedBass = false;
 	bool fishSpawnedUnlock1 = false;
 	bool fishSpawnedUnlock2 = false;
@@ -54,6 +55,8 @@ struct GameState
 	int caughtFish = -1;
 	float t = 0;
 	int miniGameCountdown = 60;
+	int currentLevel = 0;
+	const int numberOfUnlocks = 3;
 	FishingState fishingState = FishingState::STATE_NULL;
 	PlayState playState = PlayState::STATE_MENU;
 
@@ -104,6 +107,7 @@ void WinGame();
 void LoseGame();
 void DestroyFish(int id_fish);
 void DestroyLetterUI();
+void PointsUntilNextUnlock();
 
 // The entry point for a PlayBuffer program
 void MainGameEntry(PLAY_IGNORE_COMMAND_LINE)
@@ -122,6 +126,7 @@ bool MainGameUpdate(float elapsedTime)
 	UpdateFishManager();
 	UpdatePlayState();
 	UpdateFishingState();
+	PointsUntilNextUnlock();
 	std::string score = std::to_string(gameState.score);
 	char const* pchar = score.c_str();
 	Play::DrawFontText("32px", "SCORE: " + std::to_string(gameState.score), { 285, 15 }, Play::CENTRE);
@@ -317,6 +322,7 @@ void PlayerControls()
 void SpawnRod()
 {
 	Play::CreateGameObject(TYPE_ROD, { 160, -10 }, 5, "hook");
+	Play::MoveSpriteOrigin("hook", 0, 2);
 }
 
 void UpdateRod()
@@ -385,12 +391,14 @@ void UpdateFishingUI(const char* fill, int collisionRadius)
 
 	if (gameState.winPoints >= 300 && gameState.hasCaught == false)
 	{
+		Play::PlayAudio("catch_fish");
 		gameState.hasCaught = true;
 		gameState.score += gameState.fishPoints;
 		gameState.fishingState = FishingState::STATE_CAUGHT;
 	}
 	if (gameState.losePoints >= 300)
 	{
+		Play::PlayAudio("lost_fish");
 		gameState.fishingState = FishingState::STATE_LOST;
 	}
 	Play::UpdateGameObject(obj_bar);
@@ -424,7 +432,7 @@ void UpdateFishUI()
 
 void UpdateFillUI() 
 {
-	if (gameState.fishPoints == 1)
+	if (gameState.fishPoints <= 1)
 	{
 		UpdateFishingUI("fill_easy", 15);
 		PlayerControlsUI(60, 120);
@@ -453,24 +461,29 @@ void PlayerControlsUI(int fillHeightUp, int fillHeightDown)
 	if (Play::KeyPressed(VK_UP))
 	{
 		obj_fill.velocity.y = -1.0;
+		Play::PlayAudio("fishing_reel");
 	}
 
 	else if (Play::KeyPressed(VK_DOWN))
 	{
 		obj_fill.velocity.y = 1.0;
+		Play::PlayAudio("fishing_reel");
 	}
 	else
 	{
 		if (obj_fill.pos.y >= fillHeightDown)
 		{
 			obj_fill.pos.y = fillHeightDown;
+			//Play::StopAudioLoop("fishing_reel");
 		}
 
 		else if (obj_fill.pos.y <= fillHeightUp)
 		{
 			obj_fill.pos.y = fillHeightUp;
+			//Play::StopAudioLoop("fishing_reel");
 		}
 	}
+
 }
 
 void SpawnLetterUI()
@@ -539,16 +552,11 @@ void EndGameManager()
 	{
 		WinGame();
 	}
-	// win game
-	// menu
 
 	if (gameState.fishCounter == 0) 
 	{
 		LoseGame();
 	}
-	// if no fish left 
-	// lose game
-	// menu
 }
 
 void WinGame() 
@@ -562,8 +570,42 @@ void WinGame()
 
 void LoseGame() 
 {
+	// LOSER UI
 	gameState.playState = PlayState::STATE_RESTART;
 	gameState.fishingState = FishingState::STATE_NULL;
+}
+
+void PointsUntilNextUnlock() 
+{
+	if (gameState.currentLevel < gameState.numberOfUnlocks) 
+	{
+		int UnlockPoints[] = { gameState.fishUnlockOne, gameState.fishUnlockTwo, gameState.fishUnlockThree };
+
+		int scoreNeededNextLvl = UnlockPoints[gameState.currentLevel];
+
+		if (gameState.score >= scoreNeededNextLvl)
+		{
+			++gameState.currentLevel;
+		}
+
+		gameState.pointsNeeded = scoreNeededNextLvl - gameState.score;
+	}
+	else 
+	{
+		gameState.pointsNeeded = 0;
+	}
+}
+
+void PointsUntilUnlockUI()
+{
+	if (gameState.currentLevel < gameState.numberOfUnlocks) 
+	{
+		Play::DrawFontText("32px", std::to_string(gameState.pointsNeeded) + " POINTS UNTIL A NEW FISH UNLOCKS ", { 170, 160 }, Play::CENTRE);
+	}
+	else 
+	{
+		Play::DrawFontText("32px", "CATCH THE GOLDEN FISH TO WIN", { 170, 160 }, Play::CENTRE);
+	}
 }
 
 void UpdatePlayState()
@@ -572,7 +614,7 @@ void UpdatePlayState()
 	{
 	case PlayState::STATE_MENU:
 		Play::DrawFontText("32px", "SCORE: " + std::to_string(gameState.score), { 285, 15 }, Play::CENTRE);
-		Play::DrawFontText("32px", "CATCH THE GOLDEN FISH TO WIN", { 160, 160 }, Play::CENTRE);
+		Play::DrawFontText("32px", "CATCH THE GOLDEN FISH TO WIN", { 170, 160 }, Play::CENTRE);
 		SpawnLetterUI();
 		UpdateLetterUI("letter_menu");
 		if (Play::KeyPressed(VK_SPACE)) 
@@ -591,6 +633,7 @@ void UpdatePlayState()
 		UpdateProgressBarUI();
 		break;
 	case PlayState::STATE_OUTCOME:
+		Play::StopAudioLoop("fishing_reel");
 		Play::DestroyGameObjectsByType(TYPE_BAR_UI);
 		Play::DestroyGameObjectsByType(TYPE_FILL_UI);
 		Play::DestroyGameObjectsByType(TYPE_FISH_UI);
@@ -627,6 +670,7 @@ void UpdateFishingState()
 		gameState.hasCaughtGolden = false;
 		UpdateRod();
 		PlayerControls();
+		PointsUntilUnlockUI();
 		break;
 	case FishingState::STATE_REEL:
 	{
@@ -662,12 +706,13 @@ void UpdateFishingState()
 			SpawnFishingUI();
 		}
 		UpdateRod();
+		PointsUntilUnlockUI();
 	}
 	break;
 	case FishingState::STATE_CATCHING:
 		UpdateFillUI();
 		UpdateFishUI();
-		Play::DrawFontText("32px", "KEEP THE ORANGE BAR OVER THE FISH", { 160, 160 }, Play::CENTRE);
+		Play::DrawFontText("32px", "KEEP THE ORANGE BAR OVER THE FISH", { 170, 160 }, Play::CENTRE);
 		break;
 	case FishingState::STATE_CAUGHT:
 		gameState.playState = PlayState::STATE_OUTCOME;
